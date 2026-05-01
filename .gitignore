@@ -1,0 +1,26 @@
+# Build output
+build/
+*/build/
+.gradle/
+.cxx/
+
+# Local SDK path (regenerate on each clone)
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+__MACOSX/
+Thumbs.db
+
+# Logs
+*.log
+hs_err_pid*
+
+# Captures
+captures/

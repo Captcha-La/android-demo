@@ -1,0 +1,75 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'la.captcha.demo'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'la.captcha.demo'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+
+        // Keep APK lean — match the ABIs the SDK ships native libs for.
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    buildFeatures {
+        compose true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.4'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+}
+
+dependencies {
+    // Captchala SDK as a pre-built AAR.
+    implementation files('libs/captchala.aar')
+
+    // Transitive runtime dependencies of the AAR (re-declared because
+    // a flat AAR ships no POM).
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.77'
+
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.activity:activity-compose:1.8.2'
+    implementation 'androidx.compose.ui:ui:1.5.4'
+    implementation 'androidx.compose.ui:ui-tooling-preview:1.5.4'
+    implementation 'androidx.compose.foundation:foundation:1.5.4'
+    implementation 'androidx.compose.material3:material3:1.1.2'
+    implementation 'androidx.compose.runtime:runtime:1.5.4'
+
+    debugImplementation 'androidx.compose.ui:ui-tooling:1.5.4'
+}

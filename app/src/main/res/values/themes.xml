@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Material3 + Compose uses the themes set on the Activity only as the
+      splash / window background; colors come from the Compose MaterialTheme.
+      We just need a valid parent so the Activity can attach.
+    -->
+    <style name="Theme.CaptchalaDemo" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
