@@ -11,8 +11,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // Flat directory holding the pre-built captchala.aar.
-        flatDir { dirs "${rootDir}/app/libs" }
     }
 }
 

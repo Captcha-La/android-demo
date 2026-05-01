@@ -52,16 +52,8 @@ android {
 }
 
 dependencies {
-    // Captchala SDK as a pre-built AAR.
-    implementation files('libs/captchala.aar')
-
-    // Transitive runtime dependencies of the AAR (re-declared because
-    // a flat AAR ships no POM).
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.11.0'
-    implementation 'com.google.code.gson:gson:2.10.1'
-    implementation 'org.bouncycastle:bcprov-jdk18on:1.77'
+    // Captchala SDK from Maven Central — auto-pulls all transitive deps via POM.
+    implementation 'la.captcha:captchala:1.0.2'
 
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.activity:activity-compose:1.8.2'
