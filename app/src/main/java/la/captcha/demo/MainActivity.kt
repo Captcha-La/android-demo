@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import la.captcha.sdk.CaptchalaClient
 import la.captcha.sdk.CaptchalaConfig
 import la.captcha.sdk.CaptchalaError
@@ -46,7 +47,6 @@ import la.captcha.sdk.CaptchalaResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -57,18 +57,25 @@ import java.net.URL
  */
 class MainActivity : ComponentActivity() {
 
-    private val appKey: String = "demo_app"
+    // ── Fill these in before running ─────────────────────────────────────
+    // Your app key from https://dash.captcha.la
+    private val appKey: String = ""
+    // Base URL of YOUR backend that issues the server_token and validates the
+    // pass_token (see https://captcha.la/docs). The two endpoints used below
+    // (/demo/issue-captcha-token, /demo/validate-pass-token) are examples —
+    // point them at whatever your backend exposes.
+    private val backendUrl: String = ""
+    // Your business user ID — in a real app this comes from the signed-in session.
     private val demoUid: String = "demo-user-12345"
 
     private var captcha: CaptchalaClient? = null
 
-    /** Fetches server_token from the dashboard demo backend. In a real
-     *  integration, this should be an HTTP call to your own backend
-     *  (which holds the app credentials and proxies to the Captchala API). */
+    /** Fetches the server_token from your backend (which holds the app
+     *  credentials and calls the Captchala API). */
     private suspend fun fetchServerToken(): String? = withContext(Dispatchers.IO) {
         try {
             val url = URL(
-                "https://demo-v1.captcha.la/demo/issue-captcha-token" +
+                "$backendUrl/demo/issue-captcha-token" +
                         "?app_key=${appKey}&action=demo&uid=${demoUid}"
             )
             val conn = url.openConnection() as HttpURLConnection
@@ -86,7 +93,7 @@ class MainActivity : ComponentActivity() {
     private suspend fun validatePassToken(passToken: String): String =
         withContext(Dispatchers.IO) {
             try {
-                val url = URL("https://demo-v1.captcha.la/demo/validate-pass-token")
+                val url = URL("$backendUrl/demo/validate-pass-token")
                 val conn = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
                     connectTimeout = 8000
@@ -146,71 +153,78 @@ class MainActivity : ComponentActivity() {
         onResult: (String) -> Unit,
         onDone: () -> Unit,
     ) {
+        if (appKey.isEmpty() || backendUrl.isEmpty()) {
+            onStatus("Set appKey and backendUrl in MainActivity.kt first (get an app key at https://dash.captcha.la).")
+            onDone()
+            return
+        }
         onStatus("Initializing with your settings…")
 
-        val initialToken = runBlocking { fetchServerToken() }
+        // Fetch the server token off the main thread. Blocking here (runBlocking)
+        // froze the UI for up to the 8 s network timeout and triggered an ANR.
+        lifecycleScope.launch {
+            val initialToken = fetchServerToken()
 
-        // Destroy prior instance so init() picks up fresh config.
-        CaptchalaClient.destroy()
-        captcha = CaptchalaClient.getClient(applicationContext).init(
-            CaptchalaConfig.Builder()
-                .appKey(appKey)
-                .action("demo")
-                .lang(settings.lang)
-                .theme(settings.theme)
-                .enableVoice(settings.enableVoice)
-                .enableOfflineMode(settings.enableOfflineMode)
-                .serverToken(initialToken)
-                .onServerTokenExpired { fetchServerToken() }
-                .build()
-        )
+            // Destroy prior instance so init() picks up fresh config.
+            CaptchalaClient.destroy()
+            captcha = CaptchalaClient.getClient(applicationContext).init(
+                CaptchalaConfig.Builder()
+                    .appKey(appKey)
+                    .action("demo")
+                    .lang(settings.lang)
+                    .theme(settings.theme)
+                    .enableVoice(settings.enableVoice)
+                    .enableOfflineMode(settings.enableOfflineMode)
+                    .serverToken(initialToken)
+                    .onServerTokenExpired { fetchServerToken() }
+                    .build()
+            )
 
-        onStatus("Verifying…")
-        captcha?.setListener(object : CaptchalaListener {
-            override fun onReady() {
-                onStatus("Interactive challenge loaded — complete it.")
-            }
-
-            override fun onSuccess(result: CaptchalaResult) {
-                val flags = buildString {
-                    if (result.isOffline) append(" (offline)")
-                    if (result.isClientOnly) append(" (client-only)")
+            onStatus("Verifying…")
+            captcha?.setListener(object : CaptchalaListener {
+                override fun onReady() {
+                    onStatus("Interactive challenge loaded — complete it.")
                 }
-                onResult(
-                    "SUCCESS$flags\n" +
-                            "pass_token : ${result.passToken}\n" +
-                            "challenge  : ${result.challengeId}\n" +
-                            "ttl (sec)  : ${result.ttl}\n\n" +
-                            "(validating pass_token with backend...)"
-                )
-                onDone()
-                CoroutineScope(Dispatchers.Main).launch {
-                    val validateInfo = validatePassToken(result.passToken)
+
+                override fun onSuccess(result: CaptchalaResult) {
+                    val flags = buildString {
+                        if (result.isOffline) append(" (offline)")
+                        if (result.isClientOnly) append(" (client-only)")
+                    }
                     onResult(
                         "SUCCESS$flags\n" +
                                 "pass_token : ${result.passToken}\n" +
-                                "challenge  : ${result.challengeId}\n" +
-                                "ttl (sec)  : ${result.ttl}\n\n" +
-                                validateInfo
+                                "challenge  : ${result.challengeId}\n\n" +
+                                "(validating pass_token with backend...)"
                     )
+                    onDone()
+                    CoroutineScope(Dispatchers.Main).launch {
+                        val validateInfo = validatePassToken(result.passToken)
+                        onResult(
+                            "SUCCESS$flags\n" +
+                                    "pass_token : ${result.passToken}\n" +
+                                    "challenge  : ${result.challengeId}\n\n" +
+                                    validateInfo
+                        )
+                    }
                 }
-            }
 
-            override fun onFail(error: CaptchalaError) {
-                onResult("FAIL: [${error.code}] ${error.message}")
-                onDone()
-            }
+                override fun onFail(error: CaptchalaError) {
+                    onResult("FAIL: [${error.code}] ${error.message}")
+                    onDone()
+                }
 
-            override fun onError(error: CaptchalaError) {
-                onResult("ERROR: [${error.code}] ${error.message}")
-                onDone()
-            }
+                override fun onError(error: CaptchalaError) {
+                    onResult("ERROR: [${error.code}] ${error.message}")
+                    onDone()
+                }
 
-            override fun onClose() {
-                onStatus("Closed by user.")
-                onDone()
-            }
-        })?.verify(this)
+                override fun onClose() {
+                    onStatus("Closed by user.")
+                    onDone()
+                }
+            })?.verify(this@MainActivity)
+        }
     }
 }
 
@@ -235,6 +249,7 @@ private val LANGS = listOf(
 )
 
 private val THEMES = listOf(
+    "auto"  to "Auto (system)",
     "light" to "Light",
     "dark"  to "Dark",
 )
@@ -245,7 +260,7 @@ private fun PlaygroundScreen(
     onVerifyClick: (Settings, onStatus: (String) -> Unit, onResult: (String) -> Unit, onDone: () -> Unit) -> Unit,
 ) {
     var lang by remember { mutableStateOf("") } // Auto (system)
-    var theme by remember { mutableStateOf("light") }
+    var theme by remember { mutableStateOf("auto") }
     var enableVoice by remember { mutableStateOf(true) }
     var enableOffline by remember { mutableStateOf(true) }
 
@@ -288,7 +303,7 @@ private fun PlaygroundScreen(
                         label = "Theme",
                         options = THEMES.map { (k, v) -> k as String? to v },
                         selected = theme,
-                        onSelect = { theme = it ?: "light" }
+                        onSelect = { theme = it ?: "auto" }
                     )
 
                     ToggleRow("Enable voice captcha", enableVoice) { enableVoice = it }
