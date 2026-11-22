@@ -209,6 +209,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                override fun onExpired(passToken: String) {
+                    // The pass token can no longer be submitted: ask the user to verify again.
+                    onResult("Verification expired, please verify again")
+                }
+
                 override fun onFail(error: CaptchalaError) {
                     onResult("FAIL: [${error.code}] ${error.message}")
                     onDone()
